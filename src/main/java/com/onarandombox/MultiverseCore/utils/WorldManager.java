@@ -433,9 +433,13 @@ public class WorldManager implements MVWorldManager {
     }
 
     private void nullWorld(String name) {
-        Logging.severe("The world '" + name + "' could NOT be loaded because the server didn't like it!");
-        Logging.severe("We don't really know why this is. Contact the developer of your server software!");
-        Logging.severe("Server version info: " + Bukkit.getServer().getVersion());
+    	Logging.severe("=== World Loading Error ===");
+    	Logging.severe("The world '" + name + "' could NOT be loaded because the server returned null!");
+    	Logging.severe("This usually indicates a problem with the world data or a conflict with the server configuration.");
+    	Logging.severe("Server version info: " + Bukkit.getServer().getVersion());
+    	Logging.severe("Please check the server logs above for any relevant error messages or stack traces.");
+    	Logging.severe("If you continue to have issues, please report this with the full server log.");
+    	Logging.severe("=========================");
     }
 
     private boolean doLoad(String name) {
@@ -468,37 +472,56 @@ public class WorldManager implements MVWorldManager {
     }
 
     private boolean doLoad(WorldCreator creator, boolean ignoreExists) {
-        String worldName = creator.name();
-        if (!worldsFromTheConfig.containsKey(worldName))
-            throw new IllegalArgumentException("That world doesn't exist!");
-        if (worlds.containsKey(worldName))
-            throw new IllegalArgumentException("That world is already loaded!");
+    	String worldName = creator.name();
+    	if (!worldsFromTheConfig.containsKey(worldName))
+        	throw new IllegalArgumentException("That world doesn't exist!");
+    	if (worlds.containsKey(worldName))
+        	throw new IllegalArgumentException("That world is already loaded!");
 
-        if (!ignoreExists && !new File(this.plugin.getServer().getWorldContainer(), worldName).exists() && !new File(this.plugin.getServer().getWorldContainer().getParent(), worldName).exists()) {
-            Logging.warning("WorldManager: Can't load this world because the folder was deleted/moved: " + worldName);
-            Logging.warning("Use '/mv remove' to remove it from the config!");
-            return false;
-        }
+    	if (!ignoreExists && !new File(this.plugin.getServer().getWorldContainer(), worldName).exists() && !new File(this.plugin.getServer().getWorldContainer().getParent(), worldName).exists()) {
+        	Logging.warning("WorldManager: Can't load this world because the folder was deleted/moved: " + worldName);
+        	Logging.warning("Use '/mv remove' to remove it from the config!");
+        	return false;
+    	}
 
-        WorldProperties mvworld = worldsFromTheConfig.get(worldName);
-        World cbworld;
-        try {
-            cbworld = creator.createWorld();
-        } catch (Exception e) {
-            e.printStackTrace();
-            brokenWorld(worldName);
-            return false;
-        }
-        if (cbworld == null) {
-            nullWorld(worldName);
-            return false;
-        }
-        MVWorld world = new MVWorld(plugin, cbworld, mvworld);
-        if (MultiverseCoreConfiguration.getInstance().isAutoPurgeEnabled()) {
-            this.worldPurger.purgeWorld(world);
-        }
-        this.worlds.put(worldName, world);
-        return true;
+    	WorldProperties mvworld = worldsFromTheConfig.get(worldName);
+    	World cbworld;
+    	try {
+        	cbworld = creator.createWorld();
+        	if (cbworld == null) {
+            	nullWorld(worldName);
+            	// Add detailed diagnostic information
+            	Logging.severe("Additional diagnostic information:");
+            	Logging.severe("World settings:");
+            	Logging.severe("- Environment: " + creator.environment());
+            	Logging.severe("- World Type: " + creator.type());
+            	Logging.severe("- Generator: " + creator.generatorSettings());
+            	Logging.severe("- Seed: " + creator.seed());
+            	Logging.severe("- Generate Structures: " + creator.generateStructures());
+            	File worldFolder = new File(this.plugin.getServer().getWorldContainer(), worldName);
+            	Logging.severe("World folder exists: " + worldFolder.exists());
+            	if (worldFolder.exists()) {
+                	Logging.severe("World folder contents: " + Arrays.toString(worldFolder.list()));
+                	File levelDat = new File(worldFolder, "level.dat");
+                	Logging.severe("level.dat exists: " + levelDat.exists());
+            	}
+            	return false;
+        	}
+    	} catch (Exception e) {
+        	Logging.severe("Error creating world '" + worldName + "':");
+        	Logging.severe("Error type: " + e.getClass().getName());
+        	Logging.severe("Error message: " + e.getMessage());
+        	e.printStackTrace();
+        	brokenWorld(worldName);
+        	return false;
+    	}
+    
+    	MVWorld world = new MVWorld(plugin, cbworld, mvworld);
+    	if (MultiverseCoreConfiguration.getInstance().isAutoPurgeEnabled()) {
+        	this.worldPurger.purgeWorld(world);
+    	}
+    	this.worlds.put(worldName, world);
+    	return true;
     }
 
     /**
